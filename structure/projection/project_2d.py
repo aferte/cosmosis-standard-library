@@ -203,6 +203,14 @@ class WeylPower3D(Power3D):
     section = "weyl_curvature_power_nl"
     source_specific = False
 
+class WeylMatterPower3D(Power3D):
+    section = "weyl_curvature_matter_spectrum_nl"
+    source_specific = True
+
+class MatterwIntrinsicPower3D(Power3D):
+    section = "matterw_intrinsic_power"
+    source_specific = True
+
 class MatterPower3DPPF(Power3D):
     section = "matter_power_nl"
     lin_section = "matter_power_lin"
@@ -368,7 +376,7 @@ class Spectrum(object):
         """
         # Get the required 2d power spline P(chi, logk)
         P_chi_logk_spline = self.get_power_spline(block, bin1, bin2)
-        
+
         # Get the kernels
         K1 = self.source.kernels[self.sample_a].get_kernel_spline(self.kernel_types[0], bin1)
         K2 = self.source.kernels[self.sample_b].get_kernel_spline(self.kernel_types[1], bin2)
@@ -975,6 +983,15 @@ class SpectrumType(Enum):
         prefactor_type = ("lensing", None)
         has_rsd = False
 
+    class WeylIntrinsic(Spectrum):
+        power_3d_type = MatterwIntrinsicPower3D
+        bias_correction_factors = 0
+        kernel_types = ("W_W", "N")
+        autocorrelation = False
+        name = names.shear_cl_gi
+        prefactor_type = ("lensing_weyl", None)
+        has_rsd = False
+
     class IntrinsicIntrinsic(Spectrum):
         power_3d_type = IntrinsicPower3D
         kernel_types = ("N", "N")
@@ -1526,7 +1543,7 @@ class SpectrumCalculator(object):
                 zmax = block['distances','zstar']
                 z_arr_for_cmb = np.exp(np.linspace(np.log(zmin), np.log(zmax), num = 1000))
                 self.kernels[sample_name] =  TomoNzKernel(z_arr_for_cmb, 0, is_cmb_lensing = True)
-                
+
             if kernel_type == "N":
                 self.kernels[sample_name].set_nofchi_splines(self.chi_of_z, self.dchidz,
                     clip=self.clip_chi_kernels)
@@ -1715,7 +1732,7 @@ class SpectrumCalculator(object):
 
             # We can optionally save the kernels that go into the
             # integration as well.  This is useful for e.g. plotting
-            # things.  
+            # things.
             if self.save_kernels:
                 self.save_kernels_to_block(block)
 
