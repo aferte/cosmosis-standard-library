@@ -31,26 +31,37 @@ def linear_extend(x, y, xmin, xmax, nmin, nmax, nfit):
     return x, y
 
 
-def extrapolate_section(block, section, kmin, kmax, nmin, nmax, npoint, key):
+def extrapolate_section(block, section, kmin, kmax, nmin, nmax, npoint):
     # load current values
     k = block[section, "k_h"]
     z = block[section, "z"]
     nk = len(k)
     nz = len(z)
     # load other current values
-    k, z, P = block.get_grid(section, "k_h", "z", key)
+    k, z, P = block.get_grid(section, "k_h", "z", "p_k")
     # extrapolate
     P_out = []
     for i in range(nz):
         Pi = P[:, i]
+        #Weyl x matter is negative
+        #There is a check in (MG)CANB
+        # to check if sign change in the power spectrum
+        # so the following should be ok
+        if section == 'weyl_curvature_matter_spectrum':
+            Pi = np.abs(Pi)
+
         logk, logp = linear_extend(log(k), log(Pi), log(
             kmin), log(kmax), nmin, nmax, npoint)
-        P_out.append(exp(logp))
+
+        if section == 'weyl_curvature_matter_spectrum':
+            P_out.append(-exp(logp))
+        else:
+            P_out.append(exp(logp))
 
     k = exp(logk)
     P_out = np.dstack(P_out).squeeze()
 
-    block.replace_grid(section, "z", z, "k_h", k, key, P_out.T)
+    block.replace_grid(section, "z", z, "k_h", k, "P_k", P_out.T)
 
 
 def setup(options):
@@ -75,11 +86,7 @@ def execute(block, config):
         extrapk.remove('')
 
     # extrapolate non-linear power
-    for section in [names.matter_power_nl, names.matter_power_lin]+extrapk:
-        if '.' in section:
-            section, key = section.split('.')
-        else:
-            key = 'p_k'
+    for section in [names.matter_power_nl, names.matter_power_lin,"weyl_curvature_spectrum","weyl_curvature_matter_spectrum"]+extrapk:
         if block.has_section(section):
-            extrapolate_section(block, section, kmin, kmax, nmin, nmax, npoint, key)
+            extrapolate_section(block, section, kmin, kmax, nmin, nmax, npoint)
     return 0
