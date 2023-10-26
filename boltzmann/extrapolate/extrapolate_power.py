@@ -47,13 +47,13 @@ def extrapolate_section(block, section, kmin, kmax, nmin, nmax, npoint):
         #There is a check in (MG)CANB
         # to check if sign change in the power spectrum
         # so the following should be ok
-        if section == 'weyl_curvature_matter_spectrum':
+        if section in ["weyl_curvature_matter_spectrum_nl","weyl_curvature_matter_spectrum"]:
             Pi = np.abs(Pi)
 
         logk, logp = linear_extend(log(k), log(Pi), log(
             kmin), log(kmax), nmin, nmax, npoint)
 
-        if section == 'weyl_curvature_matter_spectrum':
+        if section in ["weyl_curvature_matter_spectrum_nl","weyl_curvature_matter_spectrum"]:
             P_out.append(-exp(logp))
         else:
             P_out.append(exp(logp))
@@ -86,7 +86,8 @@ def execute(block, config):
         extrapk.remove('')
 
     # extrapolate non-linear power
-    for section in [names.matter_power_nl, names.matter_power_lin,"weyl_curvature_spectrum","weyl_curvature_matter_spectrum"]+extrapk:
+    for section in [names.matter_power_nl, names.matter_power_lin,"weyl_curvature_matter_spectrum",\
+        "weyl_curvature_matter_spectrum_nl","weyl_curvature_power_lin","weyl_curvature_power_nl"]+extrapk:
         if block.has_section(section):
             extrapolate_section(block, section, kmin, kmax, nmin, nmax, npoint)
     return 0
