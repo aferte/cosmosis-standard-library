@@ -2,6 +2,7 @@ from cosmosis.datablock import names, option_section
 from linear_alignments import kirk_rassat_host_bridle_power
 from linear_alignments import bridle_king
 from linear_alignments import bridle_king_corrected
+from linear_alignments import bridle_king_corrected_weyl
 from linear_alignments import linear
 import numpy as np
 
@@ -9,6 +10,7 @@ import numpy as np
 def setup(options):
     method = options[option_section, "method"].lower()
     grid_mode = options.get_bool(option_section, "grid_mode", default=False)
+    use_weyl = options.get_bool(option_section, "use_weyl", default=False)
     gal_intrinsic_power = options.get_bool(
         option_section, "do_galaxy_intrinsic", False)
     name = options.get_string(option_section, "name", default="").lower()
@@ -22,11 +24,11 @@ def setup(options):
                          'be either "KRHB" (for Kirk, Rassat, Host, Bridle) or BK for '
                          'Bridle & King or "BK_corrected" for the corrected version of that')
 
-    return method, gal_intrinsic_power, grid_mode, suffix
+    return method, gal_intrinsic_power, use_weyl, grid_mode, suffix
 
 
 def execute(block, config):
-    method, gal_intrinsic_power, grid_mode, suffix = config
+    method, gal_intrinsic_power, use_weyl, grid_mode, suffix = config
 
     # load z_lin, k_lin, P_lin, z_nl, k_nl, P_nl, C1, omega_m, H0
     lin = names.matter_power_lin
@@ -34,6 +36,8 @@ def execute(block, config):
     ia = names.intrinsic_alignment_parameters + suffix
     ia_ii = names.intrinsic_power + suffix
     ia_gi = names.galaxy_intrinsic_power + suffix
+    if use_weyl:
+        ia_mwi = names.matterw_intrinsic_power + suffix
     ia_mi = names.matter_intrinsic_power + suffix
     gm = "matter_galaxy_power" + suffix
     cosmo = names.cosmological_parameters
@@ -52,8 +56,11 @@ def execute(block, config):
         P_II, P_GI, b_I, r_I, k_I, z_I = bridle_king(
             z_nl, k_nl, p_nl, A, omega_m)
     elif method == 'bk_corrected':
+        if use_weyl:
+            P_II, P_GWI, b_I, r_I, k_I, z_I = bridle_king_corrected_weyl(
+                z_nl, k_nl, p_nl, A, omega_m)
         P_II, P_GI, b_I, r_I, k_I, z_I = bridle_king_corrected(
-            z_nl, k_nl, p_nl, A, omega_m)
+                z_nl, k_nl, p_nl, A, omega_m)
     elif method == "linear":
         P_II, P_GI, b_I, r_I, k_I, z_I = linear(
             z_lin, k_lin, p_lin, A, omega_m)

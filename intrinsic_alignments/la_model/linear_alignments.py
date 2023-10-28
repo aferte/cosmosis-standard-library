@@ -3,7 +3,7 @@ from builtins import range
 import scipy.interpolate
 import numpy as np
 """
-This module generates the effective power P_12 
+This module generates the effective power P_12
 linear alignment KRHB model, which goes into C_ell
 (under the Limber approximation) as :
 
@@ -76,7 +76,37 @@ def bridle_king(z_nl, k_nl, P_nl, A, Omega_m):
     return P_II, P_GI, b_I, r_I, k_nl, z_nl
 
 
-def bridle_king_corrected(z_nl, k_nl, P_nl, A, Omega_m):
+def bridle_king_corrected_weyl(z_nl, k_nl, P_nl, A, Omega_m):
+    # What was used in CFHTLens and Maccrann et al.
+    # extrapolate our linear power out to high redshift
+    z0 = np.where(z_nl == 0)[0][0]
+    nz = len(z_nl)
+
+    ksmall = np.argmin(k_nl)
+
+    growth = (P_nl[:, ksmall] / P_nl[z0, ksmall])**0.5
+
+    F = - A * C1_RHOCRIT * Omega_m / growth
+
+    # intrinsic-intrinsic term
+    P_II = np.zeros_like(P_nl)
+
+    for i in range(nz):
+        P_II[i, :] = F[i]**2 * P_nl[i, :]
+
+    P_GI = np.zeros_like(P_nl)
+    for i in range(nz):
+        P_GI[i] = F[i] * P_nl[i]
+
+    # Finally calculate the intrinsic and stochastic bias terms from the power spectra
+    R1 = P_II / P_nl
+    b_I = -1.0 * np.sqrt(R1) * np.sign(A)
+    r_I = P_GI / P_II * b_I
+
+    return P_II, P_GI, b_I, r_I, k_nl, z_nl
+
+
+def bridle_king_corrected(z_nl, k_nl, P_nl, A, Omega_m, use_weyl):
     # What was used in CFHTLens and Maccrann et al.
     # extrapolate our linear power out to high redshift
     z0 = np.where(z_nl == 0)[0][0]
@@ -137,7 +167,7 @@ def linear(z_lin, k_lin, P_lin, A, Omega_m):
 
 
 def kirk_rassat_host_bridle_power(z_lin, k_lin, P_lin, z_nl, k_nl, P_nl, A, Omega_m):
-    """ 
+    """
     The Kirk, Rassat, Host, Bridle (2011) Linear Alignment model.
     Equations 8 and 9.
 
