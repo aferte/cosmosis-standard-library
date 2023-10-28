@@ -71,6 +71,15 @@ def execute(block, config):
         z, k, p_gm = block.get_grid(gm, "z", "k_h", "p_k")
         P_gI = P_GI * p_gm / p_nl
         block.put_grid(ia_gi, "z", z, "k_h", k, "p_k", P_gI)
+
+    # Needed to run the Y3 pipeline. Shear cl bb is 0 for NLA.
+    # Only supported for not grid mode.
+    ia_bb = np.zeros_like(P_II)
+    intrinsic_power_bb = "intrinsic_power_bb" + suffix
+    block._copy_section(ia_ii, intrinsic_power_bb)
+    if not grid_mode:
+        block.put_grid(intrinsic_power_bb, "z", z_I, "k_h", k_I,  "b_I" + suffix, ia_bb)
+
     return 0
 
 
