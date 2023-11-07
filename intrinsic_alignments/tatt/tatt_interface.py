@@ -100,6 +100,7 @@ def get_IA_terms(
     z_piv,
     Omega_m,
     sub_lowk=False,
+    use_weyl=False
 ):
 
     # This function reads in PT IA terms (computed at z=0), interpolates them onto k_out,
@@ -150,6 +151,26 @@ def get_IA_terms(
             else:
                 P_IA_dict[key] = grow(p0_out, Dz, 4)
 
+
+    if use_weyl: #only support NLA (no TATT, no LA)
+        weyl_dens_nl = "weyl_curvature_matter_spectrum_nl"
+        weyl_dens_lin = "weyl_curvature_matter_spectrum"
+        z_wd_nl,k_wd_nl,p_wd_nl = block.get_grid(weyl_dens_nl,"z","k_h","p_k")
+        z_wd_lin,k_wd_lin,p_wd_lin = block.get_grid(weyl_dens_lin,"z","k_h","p_k")
+
+        # Get the Weyl x Matter growth using the growth computation in exeecute
+        ind = np.where(k_wd_lin > 0.03)[0][0]
+        Dz_wd = np.sqrt(p_wd_lin[:, ind] / p_wd_lin[0, ind])
+        try:
+            assert np.allclose(k_use, k_wd_nl)
+            P_IA_dict['Pwdnl'] = p_wd_nl
+        except (AssertionError, ValueError):
+            # interpolate and re-apply correct growth factor if necessary
+            p0_orig = p_wd_nl[0]
+            p0_out = Pk_interp(k_wd_nl, p0_orig)(k_use)
+            P_IA_dict['Pwdnl'] = grow(p0_out, Dz_wd, 2)
+
+
     # include power law evolution of amplitude. Right now, this step is always done, alpha = 0 means no evolution.
     # Note, this currently compatible with scalar A1 and A2 or with vector A1 and A2 with length = z_out
 
@@ -163,6 +184,15 @@ def get_IA_terms(
         / Dz
         * ((1.0 + z_out) / (1.0 + z_piv)) ** alpha1
     )
+    if use_weyl:
+        C1_w = (
+            -1.0
+            * A1
+            * C1_RHOCRIT
+            * Omega_m
+            / Dz_wd
+            * ((1.0 + z_out) / (1.0 + z_piv)) ** alpha1
+        )
     Cdel = (
         -1.0
         * Adel
@@ -186,6 +216,9 @@ def get_IA_terms(
     C1 = amp_3d(C1, len(Dz), len(k_use))
     Cdel = amp_3d(Cdel, len(Dz), len(k_use))
     C2 = amp_3d(C2, len(Dz), len(k_use))
+    if use_weyl:
+        C1_w = amp_3d(C1, len(Dz_wd), len(k_use))
+
 
     # Get nonlinear Pk. lin Pk is already read-in at the fast-pt k grid from the fastpt block).
     P_IA_dict["P_nl"] = P_nl
@@ -198,13 +231,18 @@ def get_IA_terms(
     p_ta_ii_BB = Cdel ** 2 * P_IA_dict["P_ta_BB"]
     p_ta_gi = Cdel * (P_IA_dict["P_ta_dE1"] + P_IA_dict["P_ta_dE2"])
 
+    P_IA_out["ta_II_EE"] = p_ta_ii_EE
+    P_IA_out["ta_II_BB"] = p_ta_ii_BB
+    P_IA_out["ta_GI"] = p_ta_gi
+
+    # LA/NLA - modification for Weyl. For now, no TATT support with Weyl.
     P_IA_out["lin_II_EE"] = C1 * C1 * P_IA_dict["Plin"]
     P_IA_out["nla_II_EE"] = C1 * C1 * P_IA_dict["P_nl"]
     P_IA_out["lin_GI"] = C1 * P_IA_dict["Plin"]
     P_IA_out["nla_GI"] = C1 * P_IA_dict["P_nl"]
-    P_IA_out["ta_II_EE"] = p_ta_ii_EE
-    P_IA_out["ta_II_BB"] = p_ta_ii_BB
-    P_IA_out["ta_GI"] = p_ta_gi
+    if use_weyl: # only support NLA for simplicity (no LA, no TATT)
+        P_IA_out["nla_w_GI"] = C1_w * P_IA_dict["Pwdnl"]
+
 
     # TT
     P_IA_out["tt_GI"] = C2 * (P_IA_dict["P_mix_A"] + P_IA_dict["P_mix_B"])
@@ -239,6 +277,7 @@ def setup(options):
     do_galaxy_intrinsic = options.get_bool(option_section, "do_galaxy_intrinsic", False)
     no_IA_E = options.get_bool(option_section, "no_IA_E", False)
     no_IA_B = options.get_bool(option_section, "no_IA_B", False)
+    use_weyl = options.get_bool(option_section, "use_weyl", False)
 
     if name:
         suffix = "_" + name
@@ -251,6 +290,7 @@ def setup(options):
         do_galaxy_intrinsic,
         no_IA_E,
         no_IA_B,
+        use_weyl
     )
 
 
@@ -262,6 +302,7 @@ def execute(block, config):
         do_galaxy_intrinsic,
         no_IA_E,
         no_IA_B,
+        use_weyl
     ) = config
 
     # Load linear and non-linear matter power spectra
@@ -337,6 +378,7 @@ def execute(block, config):
         z_piv,
         omega_m,
         sub_lowk=sub_lowk,
+        use_weyl=use_weyl
     )
 
     ##### complete the proper IA model defintions.
@@ -351,6 +393,8 @@ def execute(block, config):
         ii_ee_total = E_factor * IA_terms["nla_II_EE"]
         ii_bb_total = 0.0 * IA_terms["ta_II_BB"]
         gi_e_total = E_factor * IA_terms["nla_GI"]
+        if use_weyl:
+            giw_e_total = E_factor*IA_terms['nla_w_GI']
 
     # Tidal alignment model
     elif ia_model == "ta":
@@ -397,6 +441,8 @@ def execute(block, config):
     block.put_grid(
         "intrinsic_power_bb" + suffix, "z", z_lin, "k_h", k_use, "p_k", ii_bb_total
     )
+    if use_weyl:
+        block.put_grid('matterw_intrinsic_power'+suffix, 'z', z_lin, 'k_h', k_use, 'p_k', giw_e_total)
 
     # Total GI contribution
     block.put_grid(

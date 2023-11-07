@@ -37,13 +37,15 @@ def execute(block, config):
     ia_ii = names.intrinsic_power + suffix
     ia_gi = names.galaxy_intrinsic_power + suffix
     if use_weyl:
-        ia_mwi = names.matterw_intrinsic_power + suffix
+        ia_mwi = "matterw_intrinsic_power" + suffix
     ia_mi = names.matter_intrinsic_power + suffix
     gm = "matter_galaxy_power" + suffix
     cosmo = names.cosmological_parameters
 
     z_lin, k_lin, p_lin = block.get_grid(lin, "z", "k_h", "p_k")
     z_nl, k_nl, p_nl = block.get_grid(nl, "z", "k_h", "p_k")
+    if use_weyl:
+        z_w_nl, k_w_nl, p_w_nl = block.get_grid("weyl_curvature_matter_spectrum_nl", "z", "k_h", "p_k")
 
     omega_m = block[cosmo, "omega_m"]
     A = block[ia, "A"]
@@ -58,7 +60,7 @@ def execute(block, config):
     elif method == 'bk_corrected':
         if use_weyl:
             P_II, P_GWI, b_I, r_I, k_I, z_I = bridle_king_corrected_weyl(
-                z_nl, k_nl, p_nl, A, omega_m)
+                z_nl, k_nl, p_nl, z_w_nl, k_w_nl, p_w_nl, A, omega_m)
         P_II, P_GI, b_I, r_I, k_I, z_I = bridle_king_corrected(
                 z_nl, k_nl, p_nl, A, omega_m)
     elif method == "linear":
@@ -71,9 +73,12 @@ def execute(block, config):
     else:
         block.put_grid(ia_mi, "z", z_I, "k_h", k_I,  "p_k", P_GI)
         block.put_grid(ia_ii, "z", z_I, "k_h", k_I, "p_k", P_II)
+        if use_weyl:
+            block.put_grid(ia_mwi, "z", z_I, "k_h", k_I,  "p_k", P_GWI)
 
     # This is a bit of hack...scale GI power spectrum (which is really matter-intrinsic
     # power spectrum) by P_gal_matter/P_delta_delta
+    # The galaxy-intrinsic term does not have any weyl contributions so use the matter pk.
     if gal_intrinsic_power:
         z, k, p_gm = block.get_grid(gm, "z", "k_h", "p_k")
         P_gI = P_GI * p_gm / p_nl

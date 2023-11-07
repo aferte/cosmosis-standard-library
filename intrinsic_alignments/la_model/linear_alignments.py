@@ -76,7 +76,20 @@ def bridle_king(z_nl, k_nl, P_nl, A, Omega_m):
     return P_II, P_GI, b_I, r_I, k_nl, z_nl
 
 
-def bridle_king_corrected_weyl(z_nl, k_nl, P_nl, A, Omega_m):
+def bridle_king_corrected_weyl(z_nl, k_nl, P_nl, z_w_nl, k_w_nl, P_w_nl, A, Omega_m):
+    #FOR WEYL x MATTER
+    # What was used in CFHTLens and Maccrann et al.
+    # extrapolate our linear power out to high redshift
+    zw0 = np.where(z_w_nl == 0)[0][0]
+    nzw = len(z_w_nl)
+
+    kwsmall = np.argmin(k_w_nl)
+
+    growth = (P_w_nl[:, kwsmall] / P_w_nl[zw0, kwsmall])**0.5
+
+    FW = - A * C1_RHOCRIT * Omega_m / growth
+
+    #FOR MATTER x MATTER
     # What was used in CFHTLens and Maccrann et al.
     # extrapolate our linear power out to high redshift
     z0 = np.where(z_nl == 0)[0][0]
@@ -94,9 +107,9 @@ def bridle_king_corrected_weyl(z_nl, k_nl, P_nl, A, Omega_m):
     for i in range(nz):
         P_II[i, :] = F[i]**2 * P_nl[i, :]
 
-    P_GI = np.zeros_like(P_nl)
-    for i in range(nz):
-        P_GI[i] = F[i] * P_nl[i]
+    P_GI = np.zeros_like(P_w_nl)
+    for i in range(nzw):
+        P_GI[i] = FW[i] * P_w_nl[i]
 
     # Finally calculate the intrinsic and stochastic bias terms from the power spectra
     R1 = P_II / P_nl
@@ -106,7 +119,7 @@ def bridle_king_corrected_weyl(z_nl, k_nl, P_nl, A, Omega_m):
     return P_II, P_GI, b_I, r_I, k_nl, z_nl
 
 
-def bridle_king_corrected(z_nl, k_nl, P_nl, A, Omega_m, use_weyl):
+def bridle_king_corrected(z_nl, k_nl, P_nl, A, Omega_m):
     # What was used in CFHTLens and Maccrann et al.
     # extrapolate our linear power out to high redshift
     z0 = np.where(z_nl == 0)[0][0]

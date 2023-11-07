@@ -4,18 +4,20 @@ import numpy as np
 
 def setup(options):
     name = options.get_string(option_section, "name", default="").lower()
+    use_weyl = options.get_bool(option_section, "use_weyl", default=False)
     do_galaxy_intrinsic = options.get_bool(
         option_section, "do_galaxy_intrinsic", default=False)
     if name:
         suffix = "_" + name
     else:
         suffix = ""
-    return {"suffix": suffix, "do_galaxy_intrinsic": do_galaxy_intrinsic}
+    return {"suffix": suffix, "do_galaxy_intrinsic": do_galaxy_intrinsic, "use_weyl": use_weyl}
 
 
 def execute(block, config):
     # Get the names of the sections to save to
     suffix = config['suffix']
+    use_weyl = config['use_weyl']
     ia_section = names.intrinsic_alignment_parameters + suffix
     ia_ii = names.intrinsic_power + suffix
     ia_mi = names.matter_intrinsic_power + suffix
@@ -23,6 +25,8 @@ def execute(block, config):
     # read in power spectra for P_II and P_MI
     z, k, p_ii = block.get_grid(ia_ii, "z", "k_h", "p_k")
     z, k, p_mi = block.get_grid(ia_mi, "z", "k_h", "p_k")
+    if use_weyl:
+        z, k, p_w_mi = block.get_grid("matterw_intrinsic_power", "z", "k_h", "p_k")
 
     # read alpha from ia_section values section
     alpha = block[ia_section, 'alpha']
@@ -33,10 +37,14 @@ def execute(block, config):
     z_scaling = ((1 + z_grid) / (1 + z0))**alpha
     p_ii *= z_scaling**2
     p_mi *= z_scaling
+    if use_weyl:
+        p_w_mi *= z_scaling
+        block.replace_grid("matterw_intrinsic_power", "z", z, "k_h", k, "p_k", p_w_mi)
 
     # Save grid back to the block
     block.replace_grid(ia_ii, "z", z, "k_h", k, "p_k", p_ii)
     block.replace_grid(ia_mi, "z", z, "k_h", k, "p_k", p_mi)
+
 
     if config['do_galaxy_intrinsic']:
         ia_gi = names.galaxy_intrinsic_power + suffix
